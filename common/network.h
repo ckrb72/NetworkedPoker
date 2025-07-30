@@ -1,0 +1,4 @@
+#pragma once
+
+#define DEFAULT_PORT "27015"
+#define DEFAULT_BUFLEN 256

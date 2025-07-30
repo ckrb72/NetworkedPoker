@@ -8,3 +8,4 @@ set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 file(GLOB_RECURSE SRC_CXX_FILES "${SOURCE_DIR}/*.cpp")
 
 add_executable(client ${SRC_CXX_FILES})
+target_link_libraries(client ws2_32)

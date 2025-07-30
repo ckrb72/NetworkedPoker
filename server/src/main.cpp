@@ -1,13 +1,11 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
-
+#include "../../common/network.h"
 // TCP connection handles important events like player actions and disconnects
 
 // UDP connection handles things that don't matter as much like timers and such
 
-#define DEFAULT_PORT "27015"
-#define DEFAULT_BUFLEN 256
 
 int main()
 {
@@ -72,7 +70,9 @@ int main()
 
     char recvbuf[DEFAULT_BUFLEN];
 
-    if(recv(client, recvbuf, DEFAULT_BUFLEN, 0) < 0)
+    int recv_count = 0;
+
+    if((recv_count = recv(client, recvbuf, DEFAULT_BUFLEN, 0)) < 0)
     {
         std::cerr << "Failed to recv: " << WSAGetLastError() << std::endl;
         closesocket(listen_socket);
@@ -80,7 +80,9 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    
+    recvbuf[recv_count] = '\0';
+
+    std::cout << recvbuf << std::endl;
 
     closesocket(client);
 
