@@ -57,13 +57,15 @@ void network_main()
         exit(EXIT_FAILURE);
     }
 
-
     int recvlen = 0;
-    char recvbuf[DEFAULT_BUFLEN];
+    char recvbuf[DEFAULT_BUFLEN] = {};
     if((recvlen = recv(sock, recvbuf, DEFAULT_BUFLEN, 0)) > 0)
     {
-        recvbuf[recvlen] = '\0';
-        std::cout << recvbuf << std::endl;
+        std::cout << recvlen << std::endl;
+        uint64_t packed_header = *((uint64_t*)&recvbuf);
+        Network::MessageHeader<ServerAction> header = Network::unpack_header<ServerAction>(packed_header);
+        std::cout << "Message: " << (uint32_t)header.message << std::endl;
+        std::cout << "Payload: " << header.payload_size << std::endl;
     }
 
 

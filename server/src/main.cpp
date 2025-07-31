@@ -8,11 +8,6 @@
 
 int main()
 {
-    NetworkMessage<ServerAction> message(ServerAction::MESSAGE);
-    message.append<float>(99.9f);
-    message.append<uint8_t>(255);
-    message.print();
-
     WSADATA wsa_data;
     if(WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
     {
@@ -89,14 +84,9 @@ int main()
 
     std::cout << recvbuf << std::endl;
 
-    if(send(client, recvbuf, recv_count, 0) < 0)
-    {
-        std::cerr << "Failed to send: " << WSAGetLastError() << std::endl;
-        closesocket(client);
-        closesocket(listen_socket);
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
+    Network::Message<ServerAction> message(ServerAction::MESSAGE);
+    message.append("This is some message");
+    Network::Send(client, message);
 
     closesocket(client);
 
