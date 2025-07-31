@@ -1,18 +1,19 @@
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <iostream>
 #include "../../common/network.h"
+#include "../../common/game.h"
 
-int main()
+#include <thread>
+#include <mutex>
+
+
+std::mutex netmtx;
+
+bool done = false;
+
+void network_main()
 {
-    WSADATA wsa_data;
-    if(WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
-    {
-        std::cerr << "Failed to start winsocket" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    struct addrinfo* result = nullptr;
+    std::cout << "Trying to do network stuff" << std::endl;
+        struct addrinfo* result = nullptr;
     struct addrinfo hints = {};
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -57,8 +58,38 @@ int main()
     }
 
 
+    int recvlen = 0;
+    char recvbuf[DEFAULT_BUFLEN];
+    if((recvlen = recv(sock, recvbuf, DEFAULT_BUFLEN, 0)) > 0)
+    {
+        recvbuf[recvlen] = '\0';
+        std::cout << recvbuf << std::endl;
+    }
+
+
     closesocket(sock);
     freeaddrinfo(result);
+
+    done = true;
+}
+
+int main()
+{
+
+    std::thread thread(network_main);
+
+    WSADATA wsa_data;
+    if(WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
+    {
+        std::cerr << "Failed to start winsocket" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    while(!done)
+    {
+
+    }
+
     WSACleanup();
     exit(EXIT_FAILURE);
 }

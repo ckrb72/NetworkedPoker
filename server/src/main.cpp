@@ -1,7 +1,6 @@
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <iostream>
 #include "../../common/network.h"
+#include "../../common/game.h"
 // TCP connection handles important events like player actions and disconnects
 
 // UDP connection handles things that don't matter as much like timers and such
@@ -9,6 +8,11 @@
 
 int main()
 {
+    NetworkMessage<ServerAction> message(ServerAction::MESSAGE);
+    message.append<float>(99.9f);
+    message.append<uint8_t>(255);
+    message.print();
+
     WSADATA wsa_data;
     if(WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
     {
@@ -75,6 +79,7 @@ int main()
     if((recv_count = recv(client, recvbuf, DEFAULT_BUFLEN, 0)) < 0)
     {
         std::cerr << "Failed to recv: " << WSAGetLastError() << std::endl;
+        closesocket(client);
         closesocket(listen_socket);
         WSACleanup();
         exit(EXIT_FAILURE);
@@ -83,6 +88,15 @@ int main()
     recvbuf[recv_count] = '\0';
 
     std::cout << recvbuf << std::endl;
+
+    if(send(client, recvbuf, recv_count, 0) < 0)
+    {
+        std::cerr << "Failed to send: " << WSAGetLastError() << std::endl;
+        closesocket(client);
+        closesocket(listen_socket);
+        WSACleanup();
+        exit(EXIT_FAILURE);
+    }
 
     closesocket(client);
 
