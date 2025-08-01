@@ -1,6 +1,4 @@
 #pragma once
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <stdio.h>
 #include <vector>
 #include <cstring>
@@ -86,26 +84,5 @@ namespace Network
                 std::cout << "Vec Size: " << message.size() << std::endl;
                 std::cout << "Payload Recorded Size: " << header.payload_size << std::endl;
             }
-
-            template <typename Q>
-            friend uint32_t Send(SOCKET socket, Message<Q> message);
     };
-
-    template <typename T>
-    uint32_t Send(SOCKET socket, Message<T> message)
-    {
-        int sent_bytes = 0;
-        int total_bytes = sizeof(message.header) + message.message.size();
-        uint64_t packed_header = pack_header(message.header);
-
-        std::vector<uint8_t> sendbuf(total_bytes);
-        memcpy(&sendbuf[0], &packed_header, sizeof(packed_header));
-
-        if(message.header.payload_size > 0)
-            memcpy(&sendbuf[8], message.message.data(), message.message.size());
-
-        // TODO: Might want to use ASIO or some encryption library for safer connections
-        while((sent_bytes += send(socket, (const char*)&sendbuf[0], total_bytes, 0)) < total_bytes);
-        return sent_bytes;
-    }
 }

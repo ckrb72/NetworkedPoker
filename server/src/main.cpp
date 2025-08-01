@@ -1,6 +1,7 @@
 #include <iostream>
-#include "../../common/network.h"
-#include "../../common/game.h"
+#include <game/game.h>
+#include <network/network.h>
+#include <asio.hpp>
 // TCP connection handles important events like player actions and disconnects
 
 // UDP connection handles things that don't matter as much like timers and such
@@ -8,89 +9,22 @@
 
 int main()
 {
-    WSADATA wsa_data;
-    if(WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
-    {
-        std::cerr << "Failed to init windows sockets" << std::endl;
-        exit(EXIT_FAILURE);
-    }
+    // Context needed per application
+    asio::io_context context;
 
-    std::cout << "Server" << std::endl;
+    // Acceptor accepts connections
+    asio::ip::tcp::acceptor acceptor(context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 8080));
 
-    struct addrinfo* result = nullptr;
-    struct addrinfo hints = {};
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = AI_PASSIVE;
+    // Accept the connection and use this socket to communicate
+    asio::ip::tcp::socket socket(context);
+    acceptor.accept(socket);
 
-    if(getaddrinfo(nullptr, DEFAULT_PORT, &hints, &result) != 0)
-    {
-        std::cerr << "Failed to getaddrinfo" << std::endl;
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
+    std::string message = "this is a test";
 
-    SOCKET listen_socket = INVALID_SOCKET;
-    listen_socket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    if(listen_socket == INVALID_SOCKET)
-    {
-        std::cerr << "Failed to create socket" << std::endl;
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
+    asio::write(socket, asio::buffer(message));
 
-    if(bind(listen_socket, result->ai_addr, result->ai_addrlen) == SOCKET_ERROR)
-    {
-        std::cerr << "Failed to bind socket" << std::endl;
-        closesocket(listen_socket);
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
+    Network::Message<ServerAction> server_message(ServerAction::CARD);
+    server_message.append<Card>(Card{Rank::ACE, Suit::CLUBS});
 
-    freeaddrinfo(result);
-
-    if(listen(listen_socket, SOMAXCONN) == SOCKET_ERROR)
-    {
-        std::cerr << "Failed to listen: " << WSAGetLastError() << std::endl;
-        closesocket(listen_socket);
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-
-    SOCKET client = accept(listen_socket, nullptr, nullptr);
-    if(client == INVALID_SOCKET)
-    {
-        std::cerr << "Failed to accept: " << WSAGetLastError() << std::endl;
-        closesocket(listen_socket);
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-
-    char recvbuf[DEFAULT_BUFLEN];
-
-    int recv_count = 0;
-
-    if((recv_count = recv(client, recvbuf, DEFAULT_BUFLEN, 0)) < 0)
-    {
-        std::cerr << "Failed to recv: " << WSAGetLastError() << std::endl;
-        closesocket(client);
-        closesocket(listen_socket);
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-
-    recvbuf[recv_count] = '\0';
-
-    std::cout << recvbuf << std::endl;
-
-    Network::Message<ServerAction> message(ServerAction::CARD);
-    message.append<Card>(Card{Rank::ACE, Suit::CLUBS});
-    Network::Send(client, message);
-
-    closesocket(client);
-
-    closesocket(listen_socket);
-    WSACleanup();
     return 0;
 }
