@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <vector>
 #include <cstring>
+#include <WinSock2.h>
 
 #define DEFAULT_PORT "27015"
 #define DEFAULT_BUFLEN 2 * 1024     // 2MB of buffer
@@ -39,15 +40,19 @@ namespace Network
     {
         private:
             MessageHeader<T> header{};
-            std::vector<uint8_t> message{};
+            std::vector<uint8_t> payload{};
 
         public:
+
+            Message()
+            {}
+
             Message(T message_type)
             :header(message_type, 0)
             {}
 
             Message(T message_type, std::vector<uint8_t> data)
-            :header(message_type, data.size()), message(data)
+            :header(message_type, data.size()), payload(data)
             {}
 
             // Accepts any POD type
@@ -56,33 +61,60 @@ namespace Network
             template <typename Q>
             void append(Q data)
             {
-                uint32_t old_size = message.size();
-                message.resize(old_size + sizeof(data));
-                memcpy(&message[old_size], &data, sizeof(data));
+                uint32_t old_size = payload.size();
+                payload.resize(old_size + sizeof(data));
+                memcpy(&payload[old_size], &data, sizeof(data));
                 header.payload_size += sizeof(data);
             }
 
             void append(const char* str)
             {
                 uint32_t len = strlen(str) + 1;
-                uint32_t old_size = message.size();
-                message.resize(old_size + len);
-                memcpy(&message[old_size], str, len);
+                uint32_t old_size = payload.size();
+                payload.resize(old_size + len);
+                memcpy(&payload[old_size], str, len);
                 header.payload_size += len;
             }
 
             void append(void* data, uint32_t size)
             {
-                uint32_t old_size = message.size();
-                message.resize(old_size + size);
-                memcpy(&message[old_size], data, size);
+                uint32_t old_size = payload.size();
+                payload.resize(old_size + size);
+                memcpy(&payload[old_size], data, size);
                 header.payload_size += size;
             }
 
-            void print()
+            inline T get_type() const
             {
-                std::cout << "Vec Size: " << message.size() << std::endl;
+                return header.message;
+            }
+
+            void print() const
+            {
+                std::cout << "Vec Size: " << payload.size() << std::endl;
                 std::cout << "Payload Recorded Size: " << header.payload_size << std::endl;
             }
+            
+            std::vector<uint8_t> serialize() const
+            {
+                uint64_t packed_header = pack_header(header);
+                std::vector<uint8_t> buffer(sizeof(packed_header) + payload.size());
+                memcpy(buffer.data(), &packed_header, sizeof(packed_header));
+                memcpy(&buffer[sizeof(packed_header)], payload.data(), payload.size());
+                return buffer;
+            }
     };
+
+    template<typename T>
+    Message<T> NextMesage(std::vector<uint8_t>& buffer)
+    {
+        Message<T> message;
+        // Read header from network_buffer (and update pointer into network_buffer and stuff)
+        
+        // Read payload_size bytes from network_buffer into vector (need checks to make sure all data is in the network_buffer... if not the maybe wait or try to get it all)
+        
+        // Pack into msesage
+        return message;
+    }
+
 }

@@ -19,12 +19,10 @@ int main()
     asio::ip::tcp::socket socket(context);
     acceptor.accept(socket);
 
-    std::string message = "this is a test";
-
-    asio::write(socket, asio::buffer(message));
-
     Network::Message<ServerAction> server_message(ServerAction::CARD);
     server_message.append<Card>(Card{Rank::ACE, Suit::CLUBS});
+
+    asio::write(socket, asio::buffer(server_message.serialize()));
 
     return 0;
 }
