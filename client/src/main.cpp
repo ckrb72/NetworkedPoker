@@ -4,10 +4,12 @@
 
 #include <thread>
 #include <mutex>
+#include <queue>
 
 // TODO: Create ring buffer class / abstraction
 // Ring buffer
 Network::RingBuffer net_buffer(128);
+std::queue<Network::Message<ClientAction>> messages_to_send;
 
 int main()
 {
@@ -25,7 +27,6 @@ int main()
 
     // This will be on it's own network thread. Game data will be shared between render and network threads
     // Every tick 
-    // Read all data into ring buffer
     while(true)
     {
         char buf[256] = {};
@@ -64,9 +65,15 @@ int main()
             }
         }
         // Send all pending messages
-        // while(messages_to_send())
+        while(!messages_to_send.empty())
+        {
+            Network::Message<ClientAction> message = messages_to_send.front();
+            messages_to_send.pop();
             // Send message over
-        //endwhile
+            /*
+                asio::send(server_socket, message.serialize());
+            */
+        }
     //endtick
     }
         

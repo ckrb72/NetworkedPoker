@@ -120,6 +120,8 @@ namespace Network
     {
         private:
             std::vector<uint8_t> buffer;
+
+            // Read from tail, write to head
             uint32_t head, tail;
             uint32_t count;
         
@@ -139,8 +141,8 @@ namespace Network
                 // If we request more bytes than are in the buffer read nothing
                 if((int32_t)(count - size) < 0) return 0;
                 
-                memcpy(container, &buffer[head], size);
-                head = (head + size) % buffer.size();
+                memcpy(container, &buffer[tail], size);
+                tail = (tail + size) % buffer.size();
                 read_bytes = size;
                 count -= size;
 
@@ -154,8 +156,8 @@ namespace Network
                 // Don't place the bytes if there isn't enough space
                 if(count + size > buffer.size()) return 0;
 
-                memcpy(&buffer[tail], data, size);
-                tail = (tail + size) % buffer.size();
+                memcpy(&buffer[head], data, size);
+                head = (head + size) % buffer.size();
                 written_bytes = size;
                 count += size;
 
@@ -175,7 +177,7 @@ namespace Network
                 std::cout << "Tail: " << tail << std::endl;
                 for(int i = 0; i < buffer.size(); i++)
                 {
-                    std::cout << "| " << (char)buffer[i] << " | ";
+                    std::cout << "| " << (uint32_t)buffer[i] << " | ";
                 }
                 std::cout << std::endl;
             }
@@ -199,9 +201,13 @@ namespace Network
         
         // Read payload_size bytes from network_buffer into vector (need checks to make sure all data is in the network_buffer... if not the maybe wait or try to get it all)
         std::vector<uint8_t> payload(header.payload_size);
-        if(buffer.read_bytes(payload.data(), header.payload_size) == 0)
+
+        if(header.payload_size > 0)
         {
-            return false;
+            if(buffer.read_bytes(payload.data(), header.payload_size) == 0)
+            {
+                return false;
+            }
         }
         
         // Pack into msesage

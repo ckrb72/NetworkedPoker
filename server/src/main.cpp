@@ -26,5 +26,8 @@ int main()
     server_message2.append("This is a second message from the server");
     asio::write(socket, asio::buffer(server_message2.serialize()));
 
+    Network::Message<ServerAction> server_message3(ServerAction::DISCONNECT);
+    asio::write(socket, asio::buffer(server_message3.serialize()));
+
     return 0;
 }
