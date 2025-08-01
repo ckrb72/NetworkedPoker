@@ -1,7 +1,6 @@
 #include <iostream>
 #include <game/game.h>
 #include <network/network.h>
-#include <asio.hpp>
 // TCP connection handles important events like player actions and disconnects
 
 // UDP connection handles things that don't matter as much like timers and such
@@ -19,10 +18,13 @@ int main()
     asio::ip::tcp::socket socket(context);
     acceptor.accept(socket);
 
-    Network::Message<ServerAction> server_message(ServerAction::CARD);
-    server_message.append<Card>(Card{Rank::ACE, Suit::CLUBS});
-
+    Network::Message<ServerAction> server_message(ServerAction::MESSAGE);
+    server_message.append("This is a message from the server");
     asio::write(socket, asio::buffer(server_message.serialize()));
+
+    Network::Message<ServerAction> server_message2(ServerAction::MESSAGE);
+    server_message2.append("This is a second message from the server");
+    asio::write(socket, asio::buffer(server_message2.serialize()));
 
     return 0;
 }

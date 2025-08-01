@@ -3,9 +3,11 @@
 #include <vector>
 #include <cstring>
 #include <WinSock2.h>
+#include <asio.hpp>
 
-#define DEFAULT_PORT "27015"
-#define DEFAULT_BUFLEN 2 * 1024     // 2MB of buffer
+#define DEFAULT_PORT 8080
+#define NETBUFLEN 1024
+#define TICKRATE 20
 
 // TODO: Right now we assume T will always be 32 bits but nothing actually checks this which is bad so figure out how to enforce that
 
@@ -89,32 +91,123 @@ namespace Network
                 return header.message;
             }
 
+            inline const std::vector<uint8_t>& get_payload() const
+            {
+                return payload;
+            }
+
             void print() const
             {
                 std::cout << "Vec Size: " << payload.size() << std::endl;
                 std::cout << "Payload Recorded Size: " << header.payload_size << std::endl;
             }
             
+            // FIXME: Bug when message has no payload
             std::vector<uint8_t> serialize() const
             {
                 uint64_t packed_header = pack_header(header);
                 std::vector<uint8_t> buffer(sizeof(packed_header) + payload.size());
                 memcpy(buffer.data(), &packed_header, sizeof(packed_header));
-                memcpy(&buffer[sizeof(packed_header)], payload.data(), payload.size());
+
+                if(payload.size() > 0)
+                    memcpy(&buffer[sizeof(packed_header)], payload.data(), payload.size());
+                
                 return buffer;
             }
     };
 
-    template<typename T>
-    Message<T> NextMesage(std::vector<uint8_t>& buffer)
+    class RingBuffer
     {
-        Message<T> message;
+        private:
+            std::vector<uint8_t> buffer;
+            uint32_t head, tail;
+            uint32_t count;
+        
+        public:
+            RingBuffer(uint32_t size)
+            :buffer(size), head(0), tail(0), count(0)
+            {}
+
+            RingBuffer()
+            :buffer(1024), head(0), tail(0)
+            {}
+
+            uint32_t read_bytes(void* container, uint32_t size)
+            {
+                uint32_t read_bytes = 0;
+
+                // If we request more bytes than are in the buffer read nothing
+                if((int32_t)(count - size) < 0) return 0;
+                
+                memcpy(container, &buffer[head], size);
+                head = (head + size) % buffer.size();
+                read_bytes = size;
+                count -= size;
+
+                return read_bytes;
+            }
+
+            uint32_t write_bytes(void* data, uint32_t size)
+            {
+                uint32_t written_bytes = 0;
+
+                // Don't place the bytes if there isn't enough space
+                if(count + size > buffer.size()) return 0;
+
+                memcpy(&buffer[tail], data, size);
+                tail = (tail + size) % buffer.size();
+                written_bytes = size;
+                count += size;
+
+                return written_bytes;
+            }
+
+            inline uint32_t get_count() const
+            {
+                return count;
+            }
+
+            void print()
+            {
+                std::cout << "Size: " << buffer.size() << std::endl;\
+                std::cout << "Count: " << count << std::endl;
+                std::cout << "Head: " << head << std::endl;
+                std::cout << "Tail: " << tail << std::endl;
+                for(int i = 0; i < buffer.size(); i++)
+                {
+                    std::cout << "| " << (char)buffer[i] << " | ";
+                }
+                std::cout << std::endl;
+            }
+    };
+
+    // Get next message from ring buffer
+    // returns true if message was recieved, false otherwise
+    template<typename T>
+    bool NextMessage(RingBuffer& buffer, Message<T>* message)
+    {
+        if(buffer.get_count() <= 0) return false;
+
         // Read header from network_buffer (and update pointer into network_buffer and stuff)
+        uint64_t packed_header;
+        if(buffer.read_bytes(&packed_header, sizeof(uint64_t)) == 0)
+        {
+            // Handle errors
+            return false;
+        }
+        MessageHeader header = unpack_header<T>(packed_header);
         
         // Read payload_size bytes from network_buffer into vector (need checks to make sure all data is in the network_buffer... if not the maybe wait or try to get it all)
+        std::vector<uint8_t> payload(header.payload_size);
+        if(buffer.read_bytes(payload.data(), header.payload_size) == 0)
+        {
+            return false;
+        }
         
         // Pack into msesage
-        return message;
+        *message = Message<T>(header.message, payload);
+
+        return true;
     }
 
 }

@@ -1,17 +1,13 @@
 #include <iostream>
 #include <network/network.h>
 #include <game/game.h>
-#include <asio.hpp>
 
 #include <thread>
 #include <mutex>
 
-#define NETBUFLEN 1024
-#define TICKRATE 20
-
 // TODO: Create ring buffer class / abstraction
 // Ring buffer
-std::vector<uint8_t> network_buffer = std::vector<uint8_t>(NETBUFLEN);
+Network::RingBuffer net_buffer(128);
 
 int main()
 {
@@ -26,54 +22,54 @@ int main()
     // Connect to the given endpoint with the given socket
     asio::connect(socket, endpoints);
 
-    char buf[256] = {};
-    std::error_code error;
-
 
     // This will be on it's own network thread. Game data will be shared between render and network threads
     // Every tick 
-        // Read all data into ring buffer
+    // Read all data into ring buffer
+    while(true)
+    {
+        char buf[256] = {};
+        std::error_code error;
         size_t len = socket.read_some(asio::buffer(buf), error);
-        if(error == asio::error::eof)
-        {
+        if(len > 0) net_buffer.write_bytes(buf, len);
 
-        }
+        if(error == asio::error::eof)
+        {}
         else if(error)
         {
             throw std::system_error(error);
         }
 
-    std::cout << len << std::endl;
-
         // Get all message
-        // while(Network::GetNextMessage(network_buffer))
+        Network::Message<ServerAction> message;
+        while(Network::NextMessage(net_buffer, &message))
+        {
+            std::cout << "Read message" << std::endl;
             // Parse Message
-            /*
-                switch(message.get_type())
-                {
-                    case ServerAction::DISCONNECT:
-                    break;
-
-                    case ServerAction::MESSAGE:
-                    break;
-
-                    case ServerAction::CARD:
-                    break;
-
-                    case ServerAction::CONNECT:
-                    break;
-
-                    default:
-                    break;
-                }
-            */
-        //endwhile
-        
+            switch(message.get_type())
+            {
+                case ServerAction::DISCONNECT:
+                    std::cout << "Disconnect" << std::endl;
+                break;
+                case ServerAction::MESSAGE:
+                    std::cout << "Message" << std::endl;
+                    std::cout << message.get_payload().data() << std::endl;
+                break;
+                case ServerAction::CARD:
+                    std::cout << "Card" << std::endl;
+                break;
+                default:
+                    std::cout << "Got Default Message" << std::endl;
+                break;
+            }
+        }
         // Send all pending messages
         // while(messages_to_send())
             // Send message over
         //endwhile
     //endtick
+    }
+        
 
     exit(EXIT_FAILURE);
 }
