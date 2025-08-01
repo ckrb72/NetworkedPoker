@@ -84,8 +84,8 @@ int main()
 
     std::cout << recvbuf << std::endl;
 
-    Network::Message<ServerAction> message(ServerAction::MESSAGE);
-    message.append("This is some message");
+    Network::Message<ServerAction> message(ServerAction::CARD);
+    message.append<Card>(Card{Rank::ACE, Suit::CLUBS});
     Network::Send(client, message);
 
     closesocket(client);

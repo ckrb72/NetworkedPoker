@@ -57,6 +57,8 @@ void network_main()
         exit(EXIT_FAILURE);
     }
 
+    const char* suits[] = { "Spades", "Clubs", "Hearts", "Diamonds" };
+
     int recvlen = 0;
     char recvbuf[DEFAULT_BUFLEN] = {};
     if((recvlen = recv(sock, recvbuf, DEFAULT_BUFLEN, 0)) > 0)
@@ -66,11 +68,36 @@ void network_main()
         Network::MessageHeader<ServerAction> header = Network::unpack_header<ServerAction>(packed_header);
         std::cout << "Message: " << (uint32_t)header.message << std::endl;
         std::cout << "Payload: " << header.payload_size << std::endl;
+
+        switch(header.message)
+        {
+            case ServerAction::MESSAGE:
+            {
+                std::cout << "Server contacted you" << std::endl;
+            }
+            break;
+
+            case ServerAction::CARD:
+            {
+                // Parse card
+                Card card;
+                card.rank = (Rank)recvbuf[8];
+                card.suit = (Suit)recvbuf[9];
+
+                // Print card
+                std::cout << "You were dealt: " << (uint32_t)card.rank << " " << suits[card.suit] << std::endl;
+            }
+            break;
+
+            default:
+            break;
+        }
     }
 
 
     closesocket(sock);
     freeaddrinfo(result);
+
 
     done = true;
 }

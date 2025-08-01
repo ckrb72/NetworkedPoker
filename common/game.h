@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-enum Suits : uint8_t
+enum Suit : uint8_t
 {
     SPADES,
     CLUBS,
@@ -25,6 +25,12 @@ enum Rank : uint8_t
     QUEEN,
     KING,
     ACE
+};
+
+struct Card
+{
+    Rank rank;
+    Suit suit;
 };
 
 enum class ServerAction : uint32_t

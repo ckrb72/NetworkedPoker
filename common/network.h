@@ -108,10 +108,4 @@ namespace Network
         while((sent_bytes += send(socket, (const char*)&sendbuf[0], total_bytes, 0)) < total_bytes);
         return sent_bytes;
     }
-
-    template <typename T>
-    Message<T> GetNextMessage(SOCKET socket)
-    {
-
-    }
 }
