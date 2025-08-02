@@ -12,4 +12,3 @@ file(GLOB_RECURSE SRC_CXX_FILES "${SOURCE_DIR}/*.cpp")
 include_directories("${VENDOR_DIR}/asio" "${COMMON_DIR}")
 
 add_executable(server ${SRC_CXX_FILES})
-target_link_libraries(server ws2_32)

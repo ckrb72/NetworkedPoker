@@ -1,13 +1,15 @@
 #include <iostream>
 #include <game/game.h>
 #include <network/network.h>
-// TCP connection handles important events like player actions and disconnects
+#include "server_types.h"
 
-// UDP connection handles things that don't matter as much like timers and such
-
+Network::RingBuffer network_buffer(NETBUFLEN);
 
 int main()
 {
+    Deck deck;
+    deck.shuffle();
+
     // Context needed per application
     asio::io_context context;
 
@@ -25,6 +27,10 @@ int main()
     Network::Message<ServerAction> server_message2(ServerAction::MESSAGE);
     server_message2.append("This is a second message from the server");
     asio::write(socket, asio::buffer(server_message2.serialize()));
+
+    Network::Message<ServerAction> card_message(ServerAction::CARD);
+    card_message.append(deck.next());
+    asio::write(socket, asio::buffer(card_message.serialize()));
 
     Network::Message<ServerAction> server_message3(ServerAction::DISCONNECT);
     asio::write(socket, asio::buffer(server_message3.serialize()));

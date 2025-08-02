@@ -1,0 +1,3 @@
+[submodule "client/vendor/glfw"]
+	path = client/vendor/glfw
+	url = https://github.com/glfw/glfw.git

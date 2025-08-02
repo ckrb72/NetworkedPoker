@@ -4,12 +4,19 @@ set(CMAKE_CXX_STANDARD 20)
 project(client)
 
 set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
-set(VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../vendor/")
+set(GLOBAL_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../vendor/")
+set(LOCAL_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor")
 set(COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../common/")
 
+set(GLFW_BUILD_DOCS OFF BOOL "GLFW lib only")
+set(GLFW_INSTALL OFF CACHE BOOL "GLFW lib only")
+
+add_subdirectory(${LOCAL_VENDOR_DIR}/glfw)
+
 file(GLOB_RECURSE SRC_CXX_FILES "${SOURCE_DIR}/*.cpp")
+file(GLOB_RECURSE SRC_C_FILES "${SOURCE_DIR}/*.c")
 
-include_directories("${VENDOR_DIR}/asio" "${COMMON_DIR}")
+include_directories("${GLOBAL_VENDOR_DIR}/asio" "${COMMON_DIR}" "${LOCAL_VENDOR_DIR}")
 
-add_executable(client ${SRC_CXX_FILES})
-target_link_libraries(client ws2_32)
+add_executable(client ${SRC_CXX_FILES} ${SRC_C_FILES})
+target_link_libraries(client glfw)
