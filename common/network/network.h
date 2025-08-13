@@ -11,49 +11,49 @@
 
 // TODO: Right now we assume T will always be 32 bits but nothing actually checks this which is bad so figure out how to enforce that
 
-namespace Network
+namespace network
 {
     template <typename T>
-    struct MessageHeader
+    struct message_header
     {
         T message;
         uint32_t payload_size;
     };
 
     template <typename T>
-    uint64_t pack_header(MessageHeader<T> header)
+    uint64_t pack_header(message_header<T> header)
     {
         uint64_t data = ((uint64_t)htonl((uint32_t)header.message) << 32) | (uint64_t)htonl(header.payload_size);
         return htonll(data);
     }
 
     template <typename T>
-    MessageHeader<T> unpack_header(uint64_t data)
+    message_header<T> unpack_header(uint64_t data)
     {
         uint64_t host_data = ntohll(data);
-        MessageHeader<T> header = {};
+        message_header<T> header = {};
         header.message = static_cast<T>(ntohl(host_data >> 32));
         header.payload_size = (uint32_t)ntohl((uint32_t)host_data);
         return header;
     }
 
     template <typename T>
-    class Message
+    class message
     {
         private:
-            MessageHeader<T> header{};
+            message_header<T> header{};
             std::vector<uint8_t> payload{};
 
         public:
 
-            Message()
+            message()
             {}
 
-            Message(T message_type)
+            message(T message_type)
             :header(message_type, 0)
             {}
 
-            Message(T message_type, std::vector<uint8_t> data)
+            message(T message_type, std::vector<uint8_t> data)
             :header(message_type, data.size()), payload(data)
             {}
 
@@ -116,7 +116,7 @@ namespace Network
             }
     };
 
-    class RingBuffer
+    class ring_buffer
     {
         private:
             std::vector<uint8_t> buffer;
@@ -126,11 +126,11 @@ namespace Network
             uint32_t count;
         
         public:
-            RingBuffer(uint32_t size)
+            ring_buffer(uint32_t size)
             :buffer(size), head(0), tail(0), count(0)
             {}
 
-            RingBuffer()
+            ring_buffer()
             :buffer(1024), head(0), tail(0)
             {}
 
@@ -186,7 +186,7 @@ namespace Network
     // Get next message from ring buffer
     // returns true if message was recieved, false otherwise
     template<typename T>
-    bool NextMessage(RingBuffer& buffer, Message<T>* message)
+    bool next_message(ring_buffer& buffer, message<T>* message)
     {
         if(buffer.get_count() <= 0) return false;
 
@@ -197,7 +197,7 @@ namespace Network
             // Handle errors
             return false;
         }
-        MessageHeader header = unpack_header<T>(packed_header);
+        message_header header = unpack_header<T>(packed_header);
         
         // Read payload_size bytes from network_buffer into vector (need checks to make sure all data is in the network_buffer... if not the maybe wait or try to get it all)
         std::vector<uint8_t> payload(header.payload_size);
@@ -211,7 +211,7 @@ namespace Network
         }
         
         // Pack into msesage
-        *message = Message<T>(header.message, payload);
+        *message = network::message<T>(header.message, payload);
 
         return true;
     }

@@ -15,11 +15,21 @@
 
 bool load_shader(const std::string& vertex_path, const std::string& fragment_path, unsigned int* program_ptr);
 
-Network::RingBuffer net_buffer(NETBUFLEN);
-std::queue<Network::Message<ClientAction>> messages_to_send;
+network::ring_buffer net_buffer(NETBUFLEN);
+std::queue<network::message<game::client_action>> messages_to_send;
 
 const int WIN_WIDTH = 1920;
 const int WIN_HEIGHT = 1080;
+
+struct rect
+{
+    double x, y, w, h;
+
+    inline bool is_inside(double x, double y) const
+    {
+        return x >= this->x && x <= this->x + this->w && y >= this->y && y <= this->y + this->h;
+    }
+};
 
 void network_main()
 {
@@ -61,23 +71,23 @@ void network_main()
         }
 
         // Get all message
-        Network::Message<ServerAction> message;
-        while(Network::NextMessage(net_buffer, &message))
+        network::message<game::server_action> message;
+        while(network::next_message(net_buffer, &message))
         {
             // Parse Message
             switch(message.get_type())
             {
-                case ServerAction::DISCONNECT:
+                case game::server_action::DISCONNECT:
                     std::cout << "Disconnect" << std::endl;
                     socket.close();
                     connected = false;
                 break;
-                case ServerAction::MESSAGE:
+                case game::server_action::MESSAGE:
                     std::cout << "SERVER: " << message.get_payload().data() << std::endl;
                 break;
-                case ServerAction::CARD:
+                case game::server_action::CARD:
                 {
-                    Card* c = (Card*)&message.get_payload()[0];
+                    game::card* c = (game::card*)&message.get_payload()[0];
                     std::cout << "Card [ Suit: " << (uint32_t)c->rank << " Suit: " << (uint32_t)c->suit << "]" << std::endl;
                 }
                 break;
@@ -89,7 +99,7 @@ void network_main()
         // Send all pending messages
         while(!messages_to_send.empty())
         {
-            Network::Message<ClientAction> message = messages_to_send.front();
+            network::message<game::client_action> message = messages_to_send.front();
             messages_to_send.pop();
             // Send message over
             /*
@@ -99,6 +109,52 @@ void network_main()
     //endtick
     }
 }
+
+
+enum mouse_buttons
+{
+    LEFT,
+    RIGHT,
+    MIDDLE
+};
+
+enum button_states
+{
+    RELEASED,
+    PRESSED,
+    HELD
+};
+
+button_states buttons[3];
+
+void mouse_callback(GLFWwindow *window, int button, int action, int mods)
+{
+    if(action == GLFW_PRESS) buttons[button] = button_states::PRESSED;
+    else if(action == GLFW_RELEASE) buttons[button] = button_states::RELEASED;
+}
+
+/*
+
+class moveable_rect
+{
+    private:
+        rect r;
+        moveable<rect> m;
+        hoverable<rect> h;
+
+    public:
+        void move(x, y)
+        {
+            m.move(r, x, y);
+        }
+
+        bool is_hovering(x, y)
+        {
+            return h.is_hovering(x, y);
+        }
+}
+
+*/
 
 int main()
 {
@@ -117,6 +173,8 @@ int main()
     {
         exit(EXIT_FAILURE);
     }
+
+    glfwSetMouseButtonCallback(window, mouse_callback);
 
     glClearColor(0.3, 0.3, 0.3, 1.0);
 
@@ -181,9 +239,98 @@ int main()
 
     stbi_image_free(data);
 
+    rect r = { 1920 / 2, 1080 / 2, 1000, 1000};
+
+    std::vector<rect> rectangles = {};
+
+    unsigned int rect_vao, rect_vbo, rect_ebo;
+    glGenVertexArrays(1, &rect_vao);
+    glGenBuffers(1, &rect_vbo);
+    glGenBuffers(1, &rect_ebo);
+
+    glBindVertexArray(rect_vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, rect_vbo);
+    glBufferData(GL_ARRAY_BUFFER, 128 * sizeof(vertices), nullptr, GL_DYNAMIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rect_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 128 * 6, nullptr, GL_DYNAMIC_DRAW);
+
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
     while(!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+
+        // Update input
+        double xpos, ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+
+        if(buttons[mouse_buttons::LEFT] == button_states::PRESSED && r.is_inside(xpos, ypos))
+        {
+            std::cout << "Mouse inside rectangle" << std::endl;
+        }
+
+        // Run game logic stuff
+        if(buttons[mouse_buttons::LEFT] == button_states::PRESSED)
+        {
+            std::cout << "Pushing back rectangle" << std::endl;
+            double width = 100, height = 100;
+            rectangles.push_back({xpos - (width / 2.0), ypos - (height / 2.0), width, height});
+        }
+
+
+        // After updating input and doing all logic, run this
+
+        // Go through all buttons and assume they are held if they are pressed
+        // Next frame when we poll inputs if the state didn't change (we are still holding the button) then it will be button_states::HELD
+        // If we released the button then in the callback the state would be changed to button_states::RELEASED and all is good with the world.
+        for(int i = 0; i < 3; i++)
+        {
+            if(buttons[i] == button_states::PRESSED) buttons[i] = button_states::HELD;
+        }
+
+
+        // Push Rects to GPU Buffers
+        glBindBuffer(GL_ARRAY_BUFFER, rect_vbo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rect_ebo);
+
+        for(int i = 0; i < rectangles.size(); i++)
+        {
+            // Turn rect.x, rect.y into [-1, -1] ranges and put here
+            float verts[] = 
+            {
+                static_cast<float>(2.0 * (rectangles[i].x / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( (WIN_HEIGHT - rectangles[i].y) / WIN_HEIGHT) - 1.0),      0.0, 0.0,
+                static_cast<float>(2.0 * ( (rectangles[i].x + rectangles[i].w) / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( (WIN_HEIGHT - rectangles[i].y) / WIN_HEIGHT) - 1.0), 1.0, 0.0,
+                static_cast<float>(2.0 * ( (rectangles[i].x + rectangles[i].w) / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( ((WIN_HEIGHT - rectangles[i].y) - rectangles[i].w) / WIN_HEIGHT) - 1.0), 1.0, 1.0,
+                static_cast<float>(2.0 * (rectangles[i].x / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( ((WIN_HEIGHT - rectangles[i].y) - rectangles[i].w) / WIN_HEIGHT) - 1.0), 0.0, 1.0
+            };
+
+
+            unsigned int indx_offset = i * 4;
+            unsigned int indxs[] = 
+            {
+                indx_offset, indx_offset + 1, indx_offset + 2,
+                indx_offset + 2, indx_offset + 3, indx_offset + 0
+            };
+
+            glBufferSubData(GL_ARRAY_BUFFER, i * sizeof(verts), sizeof(verts), verts);
+            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, i * sizeof(indxs), sizeof(indxs), indxs);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+        // Render
         glClear(GL_COLOR_BUFFER_BIT);
 
         glBindVertexArray(vao);
@@ -194,6 +341,11 @@ int main()
         glBindTexture(GL_TEXTURE_2D, texture);
 
         glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, nullptr);
+
+        glBindVertexArray(rect_vao);
+        glDrawElements(GL_TRIANGLES, rectangles.size() * 6, GL_UNSIGNED_INT, nullptr);
+        
+        glBindVertexArray(0);
 
         glfwSwapBuffers(window);
     }

@@ -3,11 +3,11 @@
 #include <network/network.h>
 #include "server_types.h"
 
-Network::RingBuffer network_buffer(NETBUFLEN);
+network::ring_buffer network_buffer(NETBUFLEN);
 
 int main()
 {
-    Deck deck;
+    game::deck deck;
     deck.shuffle();
 
     // Context needed per application
@@ -20,19 +20,19 @@ int main()
     asio::ip::tcp::socket socket(context);
     acceptor.accept(socket);
 
-    Network::Message<ServerAction> server_message(ServerAction::MESSAGE);
+    network::message<game::server_action> server_message(game::server_action::MESSAGE);
     server_message.append("This is a message from the server");
     asio::write(socket, asio::buffer(server_message.serialize()));
 
-    Network::Message<ServerAction> server_message2(ServerAction::MESSAGE);
+    network::message<game::server_action> server_message2(game::server_action::MESSAGE);
     server_message2.append("This is a second message from the server");
     asio::write(socket, asio::buffer(server_message2.serialize()));
 
-    Network::Message<ServerAction> card_message(ServerAction::CARD);
+    network::message<game::server_action> card_message(game::server_action::CARD);
     card_message.append(deck.next());
     asio::write(socket, asio::buffer(card_message.serialize()));
 
-    Network::Message<ServerAction> server_message3(ServerAction::DISCONNECT);
+    network::message<game::server_action> server_message3(game::server_action::DISCONNECT);
     asio::write(socket, asio::buffer(server_message3.serialize()));
 
     return 0;
