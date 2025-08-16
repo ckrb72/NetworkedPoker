@@ -8,5 +8,8 @@ uniform sampler2D background;
 
 void main()
 {
-    final_color = texture(background, f_tex);
+    float sdf_val = texture(background, f_tex).r;
+    if(sdf_val < 0.5) discard;
+
+    final_color = vec4(1.0);
 }

@@ -1,5 +1,5 @@
 #include <iostream>
-#include <game/game.h>
+#include <game/game_common.h>
 #include <network/network.h>
 #include "server_types.h"
 

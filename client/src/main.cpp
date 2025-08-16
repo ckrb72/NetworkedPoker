@@ -1,6 +1,7 @@
 #include <iostream>
 #include <network/network.h>
-#include <game/game.h>
+#include <game/game_common.h>
+#include "game/game.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -10,8 +11,13 @@
 #include <queue>
 #include <fstream>
 
+#include <glm/glm.hpp>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#include <ft2build.h>
+#include FT_FREETYPE_H  
 
 bool load_shader(const std::string& vertex_path, const std::string& fragment_path, unsigned int* program_ptr);
 
@@ -133,29 +139,6 @@ void mouse_callback(GLFWwindow *window, int button, int action, int mods)
     else if(action == GLFW_RELEASE) buttons[button] = button_states::RELEASED;
 }
 
-/*
-
-class moveable_rect
-{
-    private:
-        rect r;
-        moveable<rect> m;
-        hoverable<rect> h;
-
-    public:
-        void move(x, y)
-        {
-            m.move(r, x, y);
-        }
-
-        bool is_hovering(x, y)
-        {
-            return h.is_hovering(x, y);
-        }
-}
-
-*/
-
 int main()
 {
     glfwInit();
@@ -174,11 +157,48 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+    FT_Library ft;
+    if(FT_Init_FreeType(&ft))
+    {
+        std::cout << "Faild to init freetype" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    FT_Face face;
+    if(FT_New_Face(ft, "../assets/fonts/Roboto-Black.ttf", 0, &face))
+    {
+        std::cout << "Couldn't load font" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    FT_Set_Pixel_Sizes(face, 0, 64);
+
+    FT_GlyphSlot slot = face->glyph;
+
+    if(FT_Load_Char(face, 'X', FT_LOAD_RENDER))
+    {
+        std::cout << "Failed to load glyph" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    FT_Render_Glyph(slot, FT_RENDER_MODE_SDF);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    
+    unsigned int x_tex;
+    glGenTextures(1, &x_tex);
+    glBindTexture(GL_TEXTURE_2D, x_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, face->glyph->bitmap.width, face->glyph->bitmap.rows, 0, GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
     glfwSetMouseButtonCallback(window, mouse_callback);
 
     glClearColor(0.3, 0.3, 0.3, 1.0);
 
-    std::thread thread(network_main);
+    //std::thread thread(network_main);
 
     float vertices[] = 
     {
@@ -241,28 +261,6 @@ int main()
 
     rect r = { 1920 / 2, 1080 / 2, 1000, 1000};
 
-    std::vector<rect> rectangles = {};
-
-    unsigned int rect_vao, rect_vbo, rect_ebo;
-    glGenVertexArrays(1, &rect_vao);
-    glGenBuffers(1, &rect_vbo);
-    glGenBuffers(1, &rect_ebo);
-
-    glBindVertexArray(rect_vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, rect_vbo);
-    glBufferData(GL_ARRAY_BUFFER, 128 * sizeof(vertices), nullptr, GL_DYNAMIC_DRAW);
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rect_ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 128 * 6, nullptr, GL_DYNAMIC_DRAW);
-
-
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -280,14 +278,6 @@ int main()
             std::cout << "Mouse inside rectangle" << std::endl;
         }
 
-        // Run game logic stuff
-        if(buttons[mouse_buttons::LEFT] == button_states::PRESSED)
-        {
-            std::cout << "Pushing back rectangle" << std::endl;
-            double width = 100, height = 100;
-            rectangles.push_back({xpos - (width / 2.0), ypos - (height / 2.0), width, height});
-        }
-
 
         // After updating input and doing all logic, run this
 
@@ -300,36 +290,6 @@ int main()
         }
 
 
-        // Push Rects to GPU Buffers
-        glBindBuffer(GL_ARRAY_BUFFER, rect_vbo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rect_ebo);
-
-        for(int i = 0; i < rectangles.size(); i++)
-        {
-            // Turn rect.x, rect.y into [-1, -1] ranges and put here
-            float verts[] = 
-            {
-                static_cast<float>(2.0 * (rectangles[i].x / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( (WIN_HEIGHT - rectangles[i].y) / WIN_HEIGHT) - 1.0),      0.0, 0.0,
-                static_cast<float>(2.0 * ( (rectangles[i].x + rectangles[i].w) / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( (WIN_HEIGHT - rectangles[i].y) / WIN_HEIGHT) - 1.0), 1.0, 0.0,
-                static_cast<float>(2.0 * ( (rectangles[i].x + rectangles[i].w) / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( ((WIN_HEIGHT - rectangles[i].y) - rectangles[i].w) / WIN_HEIGHT) - 1.0), 1.0, 1.0,
-                static_cast<float>(2.0 * (rectangles[i].x / WIN_WIDTH) - 1.0), static_cast<float>(2.0 * ( ((WIN_HEIGHT - rectangles[i].y) - rectangles[i].w) / WIN_HEIGHT) - 1.0), 0.0, 1.0
-            };
-
-
-            unsigned int indx_offset = i * 4;
-            unsigned int indxs[] = 
-            {
-                indx_offset, indx_offset + 1, indx_offset + 2,
-                indx_offset + 2, indx_offset + 3, indx_offset + 0
-            };
-
-            glBufferSubData(GL_ARRAY_BUFFER, i * sizeof(verts), sizeof(verts), verts);
-            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, i * sizeof(indxs), sizeof(indxs), indxs);
-        }
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
         // Render
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -338,12 +298,9 @@ int main()
         glUseProgram(program);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindTexture(GL_TEXTURE_2D, x_tex);
 
         glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, nullptr);
-
-        glBindVertexArray(rect_vao);
-        glDrawElements(GL_TRIANGLES, rectangles.size() * 6, GL_UNSIGNED_INT, nullptr);
         
         glBindVertexArray(0);
 
@@ -354,7 +311,7 @@ int main()
     glfwDestroyWindow(window);
     glfwTerminate();
 
-    thread.join();
+    //thread.join();
 
     exit(EXIT_FAILURE);
 }

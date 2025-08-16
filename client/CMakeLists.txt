@@ -12,6 +12,7 @@ set(GLFW_BUILD_DOCS OFF BOOL "GLFW lib only")
 set(GLFW_INSTALL OFF CACHE BOOL "GLFW lib only")
 
 add_subdirectory(${LOCAL_VENDOR_DIR}/glfw)
+add_subdirectory(${LOCAL_VENDOR_DIR}/freetype-2.13.3)
 
 file(GLOB_RECURSE SRC_CXX_FILES "${SOURCE_DIR}/*.cpp")
 file(GLOB_RECURSE SRC_C_FILES "${SOURCE_DIR}/*.c")
@@ -19,4 +20,4 @@ file(GLOB_RECURSE SRC_C_FILES "${SOURCE_DIR}/*.c")
 include_directories("${GLOBAL_VENDOR_DIR}/asio" "${COMMON_DIR}" "${LOCAL_VENDOR_DIR}")
 
 add_executable(client ${SRC_CXX_FILES} ${SRC_C_FILES})
-target_link_libraries(client glfw)
+target_link_libraries(client glfw freetype)
