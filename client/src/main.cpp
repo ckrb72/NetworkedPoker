@@ -2,6 +2,7 @@
 #include <network/network.h>
 #include <game/game_common.h>
 #include "game/game.h"
+#include "render/renderer.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -15,6 +16,9 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "stb_rect_pack.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H  
@@ -175,7 +179,7 @@ int main()
 
     FT_GlyphSlot slot = face->glyph;
 
-    if(FT_Load_Char(face, 'X', FT_LOAD_RENDER))
+    if(FT_Load_Char(face, 'A', FT_LOAD_RENDER))
     {
         std::cout << "Failed to load glyph" << std::endl;
         exit(EXIT_FAILURE);
@@ -194,48 +198,90 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+
+    unsigned int text_vao, text_vbo, text_ebo;
+    glGenVertexArrays(1, &text_vao);
+    glGenBuffers(1, &text_vbo);
+    glGenBuffers(1, &text_ebo);
+
+    glBindVertexArray(text_vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, text_vbo);
+    glBufferData(GL_ARRAY_BUFFER, 1000 * sizeof(render::character_vertex), nullptr, GL_DYNAMIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(render::character_vertex), (void*)offsetof(render::character_vertex, pos));
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::character_vertex), (void*)offsetof(render::character_vertex, tex));
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 1000 * 6 * sizeof(unsigned int), nullptr, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
     glfwSetMouseButtonCallback(window, mouse_callback);
 
     glClearColor(0.3, 0.3, 0.3, 1.0);
 
     //std::thread thread(network_main);
 
-    float vertices[] = 
+
+    std::string render_text = "This is a string, please work";
+
+    int total_indices = 0;
+
+    std::cout << "Width: " << face->glyph->bitmap.width << " Height: " << face->glyph->bitmap.rows << std::endl;
+    std::cout << "X-Bearing: " << face->glyph->bitmap_left << " Y-Bearing: " << face->glyph->bitmap_top << std::endl;
+    std::cout << "Advance: " << face->glyph->advance.x / 64.0 << std::endl;
+
+    // Where we want to render the string (given in percents)
+    // Could just specify in pixels but later on when we have nested stuff we don't want to do that
+    float xperc = 0.0;
+    float yperc = 0.5;
+
+    float scale = 1.0f;
+
+    float xpixel = xperc * WIN_WIDTH;
+    float ypixel = yperc * WIN_HEIGHT;
+
+    for(int i = 0; i < render_text.length(); i++)
     {
-        -1.0, -1.0,     0.0, 0.0,
-        1.0, -1.0,      1.0, 0.0,
-        1.0, 1.0,       1.0, 1.0,
-        -1.0, 1.0,      0.0, 1.0
-    };
+        float cur_xpix = xpixel + face->glyph->bitmap_left * scale;
+        float x = 2.0 * ((cur_xpix / WIN_WIDTH)) - 1.0;
+        float y = 2.0 * ((ypixel - (face->glyph->bitmap.rows - face->glyph->bitmap_top) * scale) / WIN_HEIGHT) - 1.0;
 
-    unsigned int indices[] = 
-    {
-        0, 1, 2,
-        2, 3, 0
-    };
+        float w = 2.0 * (face->glyph->bitmap.width * scale) / WIN_WIDTH;
+        float h = 2.0 * (face->glyph->bitmap.rows * scale) / WIN_HEIGHT;
+
+        // TODO: Figure out vertex info from glyph info
+        render::character_vertex vertices[] = 
+        {
+            {{x, y}, {0.0, 1.0}},
+            {{x + w, y},  {1.0, 1.0}},
+            {{x + w, y + h},   {1.0, 0.0}},
+            {{x, y + h},  {0.0, 0.0}}
+        };
+
+        unsigned int i_offset = i * 4;
+
+        unsigned int indices[] = 
+        {
+            i_offset, i_offset + 1, i_offset + 2,
+            i_offset + 2, i_offset + 3, i_offset
+        };
 
 
-    unsigned int vao, vbo, ebo;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
+        glBindBuffer(GL_ARRAY_BUFFER, text_vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, i * 4 * sizeof(render::character_vertex), sizeof(vertices), vertices);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_ebo);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, i * 6 * sizeof(unsigned int), sizeof(indices), indices);
+        total_indices += 6;
+        xpixel += (face->glyph->advance.x >> 6) * scale;
+    }
 
     // Shader code here
     unsigned int program;
@@ -293,14 +339,14 @@ int main()
         // Render
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glBindVertexArray(vao);
+        glBindVertexArray(text_vao);
         
         glUseProgram(program);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, x_tex);
 
-        glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLES, total_indices, GL_UNSIGNED_INT, nullptr);
         
         glBindVertexArray(0);
 
