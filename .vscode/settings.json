@@ -80,6 +80,7 @@
         "xhash": "cpp",
         "xtree": "cpp",
         "queue": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "fstream": "cpp"
     }
 }

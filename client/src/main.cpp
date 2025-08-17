@@ -3,6 +3,7 @@
 #include <game/game_common.h>
 #include "game/game.h"
 #include "render/renderer.h"
+#include <map>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -161,44 +162,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    FT_Library ft;
-    if(FT_Init_FreeType(&ft))
-    {
-        std::cout << "Faild to init freetype" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    FT_Face face;
-    if(FT_New_Face(ft, "../assets/fonts/Roboto-Black.ttf", 0, &face))
-    {
-        std::cout << "Couldn't load font" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    FT_Set_Pixel_Sizes(face, 0, 64);
-
-    FT_GlyphSlot slot = face->glyph;
-
-    if(FT_Load_Char(face, 'A', FT_LOAD_RENDER))
-    {
-        std::cout << "Failed to load glyph" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    FT_Render_Glyph(slot, FT_RENDER_MODE_SDF);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    
-    unsigned int x_tex;
-    glGenTextures(1, &x_tex);
-    glBindTexture(GL_TEXTURE_2D, x_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, face->glyph->bitmap.width, face->glyph->bitmap.rows, 0, GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
+    // Set up batch buffers for text
     unsigned int text_vao, text_vbo, text_ebo;
     glGenVertexArrays(1, &text_vao);
     glGenBuffers(1, &text_vbo);
@@ -222,39 +186,97 @@ int main()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    glfwSetMouseButtonCallback(window, mouse_callback);
 
-    glClearColor(0.3, 0.3, 0.3, 1.0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    //std::thread thread(network_main);
+    // Create and populate font atlas for basic ascii characters
+
+    const int atlas_dimension = 2048;
+
+    unsigned int font_atlas;
+    glGenTextures(1, &font_atlas);
+    glBindTexture(GL_TEXTURE_2D, font_atlas);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlas_dimension, atlas_dimension, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    FT_Library ft;
+    if(FT_Init_FreeType(&ft))
+    {
+        std::cout << "Faild to init freetype" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    FT_Face face;
+    if(FT_New_Face(ft, "../assets/fonts/Roboto-Black.ttf", 0, &face))
+    {
+        std::cout << "Couldn't load font" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    FT_Set_Pixel_Sizes(face, 0, 64);
+
+    std::map<char, render::character_info> characters;
+
+    stbrp_context context;
+    stbrp_node nodes[atlas_dimension];
+    stbrp_init_target(&context, atlas_dimension, atlas_dimension, nodes, atlas_dimension);
+
+    // Go through adding all chars to the atlas
+    for(unsigned char c = 0; c < 128; c++)
+    {
+        FT_GlyphSlot slot = face->glyph;
+
+        if(FT_Load_Char(face, c, FT_LOAD_RENDER))
+        {
+            std::cout << "Failed to load glyph" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        FT_Render_Glyph(slot, FT_RENDER_MODE_SDF);
+
+        stbrp_rect r;
+        r.w = face->glyph->bitmap.width;
+        r.h = face->glyph->bitmap.rows;
+
+        stbrp_pack_rects(&context, &r, 1);
+
+        // Need to figure out how to pack these into this or whatever
+        glTexSubImage2D(GL_TEXTURE_2D, 0, r.x, r.y, face->glyph->bitmap.width, face->glyph->bitmap.rows, GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
+
+        characters[c] = render::character_info{r.x, r.y, face->glyph->bitmap.width, face->glyph->bitmap.rows, face->glyph->bitmap_left, face->glyph->bitmap_top, face->glyph->advance.x};
+    }
 
 
-    std::string render_text = "This is a string, please work";
+    std::string render_text = "A";
 
     int total_indices = 0;
 
-    std::cout << "Width: " << face->glyph->bitmap.width << " Height: " << face->glyph->bitmap.rows << std::endl;
-    std::cout << "X-Bearing: " << face->glyph->bitmap_left << " Y-Bearing: " << face->glyph->bitmap_top << std::endl;
-    std::cout << "Advance: " << face->glyph->advance.x / 64.0 << std::endl;
-
     // Where we want to render the string (given in percents)
     // Could just specify in pixels but later on when we have nested stuff we don't want to do that
-    float xperc = 0.0;
+    float xperc = 0.5;
     float yperc = 0.5;
 
-    float scale = 1.0f;
+    float scale = 5.0f;
 
     float xpixel = xperc * WIN_WIDTH;
     float ypixel = yperc * WIN_HEIGHT;
 
     for(int i = 0; i < render_text.length(); i++)
     {
-        float cur_xpix = xpixel + face->glyph->bitmap_left * scale;
-        float x = 2.0 * ((cur_xpix / WIN_WIDTH)) - 1.0;
-        float y = 2.0 * ((ypixel - (face->glyph->bitmap.rows - face->glyph->bitmap_top) * scale) / WIN_HEIGHT) - 1.0;
+        render::character_info info = characters[render_text[i]];
 
-        float w = 2.0 * (face->glyph->bitmap.width * scale) / WIN_WIDTH;
-        float h = 2.0 * (face->glyph->bitmap.rows * scale) / WIN_HEIGHT;
+        std::cout << "Width: " << info.width << " Height: " << info.height << std::endl;
+        std::cout << "X-Bearing: " << info.bearingx << " Y-Bearing: " << info.bearingy << std::endl;
+        std::cout << "Advance: " << info.advance / 64.0 << std::endl;
+
+        float x = 2.0 * ( (xpixel + info.bearingx * scale) / WIN_WIDTH ) - 1.0;
+        float y = 2.0 * ( (ypixel - (info.height - info.bearingy) * scale) / WIN_HEIGHT) - 1.0;
+
+        float w = 2.0 * (info.width * scale) / WIN_WIDTH;
+        float h = 2.0 * (info.height * scale) / WIN_HEIGHT;
 
         // TODO: Figure out vertex info from glyph info
         render::character_vertex vertices[] = 
@@ -280,8 +302,15 @@ int main()
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_ebo);
         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, i * 6 * sizeof(unsigned int), sizeof(indices), indices);
         total_indices += 6;
-        xpixel += (face->glyph->advance.x >> 6) * scale;
+        xpixel += (info.advance >> 6) * scale;
     }
+
+
+    glfwSetMouseButtonCallback(window, mouse_callback);
+
+    glClearColor(0.3, 0.3, 0.3, 1.0);
+
+    //std::thread thread(network_main);
 
     // Shader code here
     unsigned int program;
@@ -305,7 +334,7 @@ int main()
 
     stbi_image_free(data);
 
-    rect r = { 1920 / 2, 1080 / 2, 1000, 1000};
+    //rect r = { 1920 / 2, 1080 / 2, 1000, 1000};
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -319,10 +348,10 @@ int main()
         double xpos, ypos;
         glfwGetCursorPos(window, &xpos, &ypos);
 
-        if(buttons[mouse_buttons::LEFT] == button_states::PRESSED && r.is_inside(xpos, ypos))
+        /*if(buttons[mouse_buttons::LEFT] == button_states::PRESSED && r.is_inside(xpos, ypos))
         {
             std::cout << "Mouse inside rectangle" << std::endl;
-        }
+        }*/
 
 
         // After updating input and doing all logic, run this
@@ -344,7 +373,7 @@ int main()
         glUseProgram(program);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, x_tex);
+        glBindTexture(GL_TEXTURE_2D, font_atlas);
 
         glDrawElements(GL_TRIANGLES, total_indices, GL_UNSIGNED_INT, nullptr);
         
@@ -459,3 +488,12 @@ bool load_shader(const std::string& vertex_path, const std::string& fragment_pat
 
     return true;
 }
+
+    /*unsigned int x_tex;
+    glGenTextures(1, &x_tex);
+    glBindTexture(GL_TEXTURE_2D, x_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, face->glyph->bitmap.width, face->glyph->bitmap.rows, 0, GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);*/
