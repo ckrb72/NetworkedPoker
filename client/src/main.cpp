@@ -250,16 +250,16 @@ int main()
     }
 
 
-    std::string render_text = "A";
+    std::string render_text = "This is some text, please work!";
 
     int total_indices = 0;
 
     // Where we want to render the string (given in percents)
     // Could just specify in pixels but later on when we have nested stuff we don't want to do that
-    float xperc = 0.5;
+    float xperc = 0.0;
     float yperc = 0.5;
 
-    float scale = 5.0f;
+    float scale = 1.0f;
 
     float xpixel = xperc * WIN_WIDTH;
     float ypixel = yperc * WIN_HEIGHT;
@@ -278,13 +278,19 @@ int main()
         float w = 2.0 * (info.width * scale) / WIN_WIDTH;
         float h = 2.0 * (info.height * scale) / WIN_HEIGHT;
 
+        float atlas_x = info.atlas_offsetx / (float)atlas_dimension;
+        float atlas_y = info.atlas_offsety / (float)atlas_dimension;
+
+        float atlas_w = info.width / (float)atlas_dimension;
+        float atlas_h = info.height / (float)atlas_dimension;
+
         // TODO: Figure out vertex info from glyph info
         render::character_vertex vertices[] = 
         {
-            {{x, y}, {0.0, 1.0}},
-            {{x + w, y},  {1.0, 1.0}},
-            {{x + w, y + h},   {1.0, 0.0}},
-            {{x, y + h},  {0.0, 0.0}}
+            {{x, y}, {atlas_x, atlas_y + atlas_h}},
+            {{x + w, y},  {atlas_x + atlas_w, atlas_y + atlas_h}},
+            {{x + w, y + h},   {atlas_x + atlas_w, atlas_y}},
+            {{x, y + h},  {atlas_x, atlas_y}}
         };
 
         unsigned int i_offset = i * 4;
